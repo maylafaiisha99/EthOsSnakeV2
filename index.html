@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ETHEREUM OS SNAKE — Debug Ready</title>
+<style>
+  body{
+    font-family:Arial, sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    height:100vh;
+    margin:0;
+    background:url('BackgroundLuar.png') center/cover no-repeat;
+    color:#333;
+    overflow:hidden
+  }
+  #game-container{position:relative;width:100%;max-width:600px;text-align:center}
+  #game-canvas{background:#111;border:3px solid #444;border-radius:8px;box-shadow:0 0 20px rgba(0,0,0,0.5);touch-action:none}
+  #score{font-size:1.2rem;margin:8px 0;color:#FFD700}
+  button{padding:10px 16px;font-size:1rem;background:#4CAF50;color:#fff;border:none;border-radius:6px;cursor:pointer;margin:6px}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  #game-over{
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:rgba(0,0,0,.85);
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s
+  }
+  #game-over.active{opacity:1;pointer-events:all}
+  #game-over h2{
+    color:#FFD700;
+    margin:0 0 8px;
+    text-align:center;
+    font-size:1.5rem;
+    font-weight:bold;
+  }
+  #game-over .win-code{
+    color:#00FF7F;
+    font-size:1.2rem;
+    font-weight:bold;
+    margin-bottom:10px;
+    text-align:center;
+  }
+  .hint{font-size:.9rem;color:#666;margin-top:6px}
+</style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="score">Score: 0</div>
+    <canvas id="game-canvas" width="400" height="400"></canvas>
+    <div>
+      <button id="start-btn" disabled>Loading assets...</button>
+      <button id="restart-btn">Restart</button>
+    </div>
+    <div class="hint">Use Arrow / WASD. Swipe on mobile.</div>
+
+    <div id="game-over">
+      <h2>CONGRATULATION YOU WIN CODE</h2>
+      <div class="win-code">A1RXM00N</div>
+      <div id="final-score">Final Score: 0</div>
+      <button id="play-again-btn">Play Again</button>
+    </div>
+  </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('game-canvas');
+  const ctx = canvas.getContext('2d');
+  const startBtn = document.getElementById('start-btn');
+  const restartBtn = document.getElementById('restart-btn');
+  const playAgainBtn = document.getElementById('play-again-btn');
+  const scoreDisplay = document.getElementById('score');
+  const finalScoreDisplay = document.getElementById('final-score');
+  const gameOverScreen = document.getElementById('game-over');
+
+  const GRID = 20;
+  const TILE = canvas.width / GRID;
+  let snake = [];
+  let dirX = GRID, dirY = 0;
+  let apple = {x: 0, y: 0};
+  let score = 0;
+  let running = false;
+  let gameSpeed = 140;
+  let loopId = null;
+
+  const assets = {
+    bg: {img: new Image(), loaded: false, name: 'UpdateBackground.png'},
+    snake: {img: new Image(), loaded: false, name: 'ETH-face.png'},
+    food: {img: new Image(), loaded: false, name: 'food.png'}
+  };
+  let assetsAttempted = 0;
+  const assetKeys = Object.keys(assets);
+
+  startBtn.disabled = true;
+
+  assetKeys.forEach(key => {
+    const item = assets[key];
+    item.img.src = item.name;
+    item.img.onload = () => {
+      item.loaded = true;
+      assetsAttempted++;
+      checkAssets();
+    };
+    item.img.onerror = () => {
+      item.loaded = false;
+      assetsAttempted++;
+      checkAssets();
+    };
+  });
+
+  function checkAssets() {
+    if (assetsAttempted >= assetKeys.length) {
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start Game';
+      draw();
+    }
+  }
+
+  function init() {
+    snake = [
+      {x: GRID*2, y: 0},
+      {x: GRID, y: 0},
+      {x: 0, y: 0}
+    ];
+    dirX = GRID; dirY = 0;
+    score = 0;
+    placeApple();
+    scoreDisplay.textContent = `Score: ${score}`;
+    gameOverScreen.classList.remove('active');
+    draw();
+  }
+
+  function startPause() {
+    if (!running) {
+      running = true;
+      startBtn.textContent = 'Pause';
+      loopId = setInterval(step, gameSpeed);
+    } else {
+      running = false;
+      startBtn.textContent = 'Resume';
+      clearInterval(loopId);
+    }
+  }
+
+  function step() {
+    const head = {x: snake[0].x + dirX, y: snake[0].y + dirY};
+    if (head.x < 0 || head.y < 0 || head.x >= canvas.width || head.y >= canvas.height) {
+      return endGame();
+    }
+    if (snake.some((s, i) => i !== 0 && s.x === head.x && s.y === head.y)) {
+      return endGame();
+    }
+
+    snake.unshift(head);
+    if (head.x === apple.x && head.y === apple.y) {
+      score++;
+      scoreDisplay.textContent = `Score: ${score}`;
+      if (score % 5 === 0 && gameSpeed > 50) {
+        gameSpeed = Math.max(50, gameSpeed - 10);
+        clearInterval(loopId);
+        loopId = setInterval(step, gameSpeed);
+      }
+      placeApple();
+    } else {
+      snake.pop();
+    }
+    draw();
+  }
+
+  function endGame() {
+    clearInterval(loopId);
+    running = false;
+    startBtn.textContent = 'Start Game';
+    finalScoreDisplay.textContent = `Final Score: ${score}`;
+    gameOverScreen.classList.add('active');
+  }
+
+  function placeApple() {
+    let px, py, ok = false;
+    while (!ok) {
+      px = Math.floor(Math.random() * (canvas.width / GRID)) * GRID;
+      py = Math.floor(Math.random() * (canvas.height / GRID)) * GRID;
+      ok = !snake.some(s => s.x === px && s.y === py);
+    }
+    apple.x = px;
+    apple.y = py;
+  }
+
+  function draw() {
+    if (assets.bg.loaded) {
+      ctx.drawImage(assets.bg.img, 0, 0, canvas.width, canvas.height);
+    } else {
+      ctx.fillStyle = '#222';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < TILE; i++) {
+      ctx.beginPath(); ctx.moveTo(i*GRID,0); ctx.lineTo(i*GRID,canvas.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,i*GRID); ctx.lineTo(canvas.width,i*GRID); ctx.stroke();
+    }
+
+    if (assets.food.loaded) {
+      ctx.drawImage(assets.food.img, apple.x, apple.y, GRID, GRID);
+    } else drawAppleFallback();
+
+    snake.forEach((seg, idx) => {
+      if (assets.snake.loaded) {
+        ctx.drawImage(assets.snake.img, seg.x, seg.y, GRID, GRID);
+      } else {
+        drawFallbackSegment(seg, idx);
+      }
+    });
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px Arial';
+    ctx.fillText(`Score: ${score}`, 10, canvas.height - 8);
+  }
+
+  function drawAppleFallback() {
+    ctx.fillStyle = '#ff3333';
+    ctx.beginPath();
+    ctx.arc(apple.x + GRID/2, apple.y + GRID/2, GRID/2 - 3, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function drawFallbackSegment(seg, idx) {
+    if (idx === 0) ctx.fillStyle = '#4CAF50'; else ctx.fillStyle = '#3a8a4a';
+    ctx.fillRect(seg.x, seg.y, GRID, GRID);
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(seg.x, seg.y, GRID, GRID);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    const key = e.key;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) e.preventDefault();
+    if (key === 'ArrowUp' || key === 'w' || key === 'W') { if (dirY !== GRID) { dirX = 0; dirY = -GRID; } }
+    else if (key === 'ArrowDown' || key === 's' || key === 'S') { if (dirY !== -GRID) { dirX = 0; dirY = GRID; } }
+    else if (key === 'ArrowLeft' || key === 'a' || key === 'A') { if (dirX !== GRID) { dirX = -GRID; dirY = 0; } }
+    else if (key === 'ArrowRight' || key === 'd' || key === 'D') { if (dirX !== -GRID) { dirX = GRID; dirY = 0; } }
+  });
+
+  let touchStartX = 0, touchStartY = 0;
+  canvas.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    touchStartX = t.clientX; touchStartY = t.clientY;
+  }, {passive: true});
+  canvas.addEventListener('touchend', (e) => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX, dy = t.clientY - touchStartY;
+    const absX = Math.abs(dx), absY = Math.abs(dy);
+    const TH = 20;
+    if (Math.max(absX, absY) < TH) return;
+    if (absX > absY) {
+      if (dx > 0 && dirX !== -GRID) { dirX = GRID; dirY = 0; }
+      else if (dx < 0 && dirX !== GRID) { dirX = -GRID; dirY = 0; }
+    } else {
+      if (dy > 0 && dirY !== -GRID) { dirX = 0; dirY = GRID; }
+      else if (dy < 0 && dirY !== GRID) { dirX = 0; dirY = -GRID; }
+    }
+  }, {passive: true});
+
+  startBtn.addEventListener('click', () => {
+    if (startBtn.disabled) return;
+    if (!snake.length) init();
+    startPause();
+  });
+
+  restartBtn.addEventListener('click', () => {
+    clearInterval(loopId); running = false; startBtn.textContent = 'Start Game';
+    init();
+  });
+
+  playAgainBtn.addEventListener('click', () => {
+    gameOverScreen.classList.remove('active');
+    init();
+    running = true;
+    loopId = setInterval(step, gameSpeed);
+    startBtn.textContent = 'Pause';
+  });
+
+  draw();
+});
+</script>
+</body>
+</html>
